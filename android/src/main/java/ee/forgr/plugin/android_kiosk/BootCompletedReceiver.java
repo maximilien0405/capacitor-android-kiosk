@@ -22,8 +22,17 @@ public class BootCompletedReceiver extends BroadcastReceiver {
     private static final String TAG = "KioskBootReceiver";
     private static final int DELAY_MS = 3000;
     private static final int ALARM_DELAY_MS = 60000;
-    private static final int JOB_ID = 1001;
+    private static final int BOOT_LAUNCH_JOB_ID_SALT = 0x4B006F74;
     private static final int ALARM_REQUEST_CODE = 2001;
+
+    /**
+     * Deterministic per-package id for {@link BootLaunchJobService}; same value must be used for
+     * schedule and cancel.
+     */
+    static int bootLaunchJobId(Context context) {
+        String pkg = context.getApplicationContext().getPackageName();
+        return (BOOT_LAUNCH_JOB_ID_SALT ^ pkg.hashCode()) & Integer.MAX_VALUE;
+    }
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -34,7 +43,6 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             SharedPreferences prefs = context.getSharedPreferences(KioskPrefs.PREFS_NAME, Context.MODE_PRIVATE);
             boolean kioskWasActive = KioskPrefs.shouldRestoreAfterBoot(prefs);
             if (!kioskWasActive) {
-                // Do not re-arm watchdog here: restore-after-boot is off; app resume will reschedule if still enabled.
                 return;
             }
 
@@ -46,18 +54,11 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             }
 
             KioskLaunchIntents.addWatchdogLaunchFlags(launchIntent);
-
-            // 1. AlarmManager second chance (60s later, works in Doze)
             scheduleAlarmLaunch(context, launchIntent);
-
-            // 2. JobScheduler fallback (runs within 60s if boot broadcast was delayed)
             scheduleJobLaunch(context);
-
-            // 3. Restore watchdog alarm (cleared at reboot) when kiosk restore is enabled
             KioskWatchdogScheduler.rescheduleIfEnabled(context);
-
-            // 4. Delayed launch (gives system time to settle); goAsync keeps receiver alive until the post runs.
             final BroadcastReceiver.PendingResult pendingResult = goAsync();
+
             new Handler(Looper.getMainLooper()).postDelayed(
                 () -> {
                     try {
@@ -134,8 +135,11 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             android.app.job.JobScheduler scheduler = (android.app.job.JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
             if (scheduler == null) return;
 
+            int jobId = bootLaunchJobId(context);
+            scheduler.cancel(jobId);
+
             ComponentName jobService = new ComponentName(context, BootLaunchJobService.class);
-            android.app.job.JobInfo.Builder builder = new android.app.job.JobInfo.Builder(JOB_ID, jobService)
+            android.app.job.JobInfo.Builder builder = new android.app.job.JobInfo.Builder(jobId, jobService)
                 .setMinimumLatency(ALARM_DELAY_MS)
                 .setOverrideDeadline(ALARM_DELAY_MS);
 

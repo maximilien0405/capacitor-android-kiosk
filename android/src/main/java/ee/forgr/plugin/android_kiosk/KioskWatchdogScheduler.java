@@ -47,8 +47,8 @@ public final class KioskWatchdogScheduler {
     public static void disable(Context context) {
         Context app = context.getApplicationContext();
         Log.i(TAG, "relaunch watchdog disabled: canceling alarm");
-        cancelPendingAlarm(app);
         app.getSharedPreferences(KioskPrefs.PREFS_NAME, Context.MODE_PRIVATE).edit().putBoolean(KEY_WATCHDOG_ENABLED, false).apply();
+        cancelPendingAlarm(app);
     }
 
     public static boolean isEnabled(Context context) {

@@ -163,7 +163,14 @@ public class CapacitorAndroidKioskPlugin extends Plugin {
             // Open home screen settings (must start from Activity so settings appear in foreground)
             skipNextPauseRecovery = true;
             Intent intent = new Intent(android.provider.Settings.ACTION_HOME_SETTINGS);
-            activity.startActivity(intent);
+            try {
+                activity.startActivity(intent);
+            } catch (Exception e) {
+                skipNextPauseRecovery = false;
+                android.util.Log.e("CapacitorAndroidKiosk", "Failed to open home settings: " + e.getMessage(), e);
+                call.reject("Failed to open home settings", e);
+                return;
+            }
 
             call.resolve();
         } catch (Exception e) {
