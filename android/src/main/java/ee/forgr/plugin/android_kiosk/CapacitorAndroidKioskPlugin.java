@@ -29,8 +29,8 @@ public class CapacitorAndroidKioskPlugin extends Plugin {
 
     @Override
     public void load() {
-        // Initialize with no allowed keys by default
         allowedKeys.clear();
+        restoreAllowedKeysFromPrefs(getKioskPrefs());
     }
 
     @PluginMethod
@@ -127,6 +127,7 @@ public class CapacitorAndroidKioskPlugin extends Plugin {
                     isInKioskMode = false;
                     setPersistedRestoreAfterReboot(false);
                     setKioskSessionActive(false);
+                    clearAllowedKeysPolicy();
                     KioskWatchdogScheduler.disable(activity.getApplicationContext());
                     call.resolve();
                 } catch (Exception e) {
@@ -208,6 +209,7 @@ public class CapacitorAndroidKioskPlugin extends Plugin {
             allowedKeys.add(KeyEvent.KEYCODE_MENU);
         }
 
+        persistAllowedKeys();
         call.resolve();
     }
 
@@ -231,6 +233,7 @@ public class CapacitorAndroidKioskPlugin extends Plugin {
         super.handleOnResume();
         Context context = getContext();
         if (context != null) {
+            BootCompletedReceiver.completeBootRestoreIfPending(context);
             KioskWatchdogScheduler.rescheduleIfEnabled(context);
         }
         Activity activity = getActivity();
@@ -398,14 +401,62 @@ public class CapacitorAndroidKioskPlugin extends Plugin {
         return context.getSharedPreferences(KioskPrefs.PREFS_NAME, Context.MODE_PRIVATE);
     }
 
+    private void restoreAllowedKeysFromPrefs(SharedPreferences prefs) {
+        if (prefs == null) {
+            return;
+        }
+        Set<String> stored = prefs.getStringSet(KioskPrefs.KEY_ALLOWED_KEYS, null);
+        if (stored == null || stored.isEmpty()) {
+            return;
+        }
+        for (String s : stored) {
+            try {
+                allowedKeys.add(Integer.parseInt(s.trim()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+    }
+
+    private void persistAllowedKeys() {
+        SharedPreferences prefs = getKioskPrefs();
+        if (prefs == null) {
+            return;
+        }
+        SharedPreferences.Editor ed = prefs.edit();
+        if (allowedKeys.isEmpty()) {
+            ed.remove(KioskPrefs.KEY_ALLOWED_KEYS);
+        } else {
+            Set<String> encoded = new HashSet<>();
+            for (Integer code : allowedKeys) {
+                encoded.add(String.valueOf(code));
+            }
+            ed.putStringSet(KioskPrefs.KEY_ALLOWED_KEYS, new HashSet<>(encoded));
+        }
+        ed.apply();
+    }
+
+    private void clearAllowedKeysPolicy() {
+        allowedKeys.clear();
+        SharedPreferences prefs = getKioskPrefs();
+        if (prefs != null) {
+            prefs.edit().remove(KioskPrefs.KEY_ALLOWED_KEYS).apply();
+        }
+    }
+
     private void setPersistedRestoreAfterReboot(boolean restore) {
         SharedPreferences prefs = getKioskPrefs();
         if (prefs != null) {
-            prefs.edit().putBoolean(KioskPrefs.KEY_RESTORE_AFTER_REBOOT, restore).apply();
+            SharedPreferences.Editor ed = prefs.edit().putBoolean(KioskPrefs.KEY_RESTORE_AFTER_REBOOT, restore);
+            if (!restore) {
+                ed.putBoolean(KioskPrefs.KEY_BOOT_RESTORE_PENDING, false);
+            }
+            ed.commit();
             if (!restore) {
                 Context ctx = getContext();
                 if (ctx != null) {
-                    BootCompletedReceiver.cancelBootLaunchActivityAlarm(ctx.getApplicationContext());
+                    Context app = ctx.getApplicationContext();
+                    BootCompletedReceiver.cancelBootLaunchActivityAlarm(app);
+                    BootCompletedReceiver.cancelBootLaunchJob(app);
                 }
             }
         }
@@ -414,7 +465,7 @@ public class CapacitorAndroidKioskPlugin extends Plugin {
     private void setKioskSessionActive(boolean active) {
         SharedPreferences prefs = getKioskPrefs();
         if (prefs != null) {
-            prefs.edit().putBoolean(KioskPrefs.KEY_KIOSK_SESSION_ACTIVE, active).apply();
+            prefs.edit().putBoolean(KioskPrefs.KEY_KIOSK_SESSION_ACTIVE, active).commit();
         }
     }
 }

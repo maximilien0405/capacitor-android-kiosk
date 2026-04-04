@@ -54,6 +54,7 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             }
 
             KioskLaunchIntents.addWatchdogLaunchFlags(launchIntent);
+            prefs.edit().putBoolean(KioskPrefs.KEY_BOOT_RESTORE_PENDING, true).commit();
             scheduleAlarmLaunch(context, launchIntent);
             scheduleJobLaunch(context);
             KioskWatchdogScheduler.rescheduleIfEnabled(context);
@@ -63,6 +64,7 @@ public class BootCompletedReceiver extends BroadcastReceiver {
                 () -> {
                     try {
                         context.startActivity(launchIntent);
+                        completeBootRestore(context.getApplicationContext());
                     } catch (Exception e) {
                         Log.e(TAG, "Delayed launch failed: " + e.getMessage(), e);
                     } finally {
@@ -150,6 +152,45 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             scheduler.schedule(builder.build());
         } catch (Exception e) {
             Log.e(TAG, "Failed to schedule job: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * One-shot boot restore: clear pending flag and cancel alarm/job fallbacks so a successful
+     * launch is not repeated. Safe to call when {@link KioskPrefs#KEY_BOOT_RESTORE_PENDING} is
+     * already false.
+     */
+    static void completeBootRestore(Context context) {
+        if (context == null) return;
+        Context app = context.getApplicationContext();
+        SharedPreferences prefs = app.getSharedPreferences(KioskPrefs.PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(KioskPrefs.KEY_BOOT_RESTORE_PENDING, false).commit();
+        cancelBootLaunchActivityAlarm(app);
+        cancelBootLaunchJob(app);
+    }
+
+    /**
+     * When the app reaches foreground after boot (e.g. alarm {@link PendingIntent} started the
+     * activity), finish boot coordination if fallbacks were still armed.
+     */
+    static void completeBootRestoreIfPending(Context context) {
+        if (context == null) return;
+        Context app = context.getApplicationContext();
+        SharedPreferences prefs = app.getSharedPreferences(KioskPrefs.PREFS_NAME, Context.MODE_PRIVATE);
+        if (prefs.getBoolean(KioskPrefs.KEY_BOOT_RESTORE_PENDING, false)) {
+            completeBootRestore(app);
+        }
+    }
+
+    static void cancelBootLaunchJob(Context context) {
+        if (context == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return;
+        try {
+            android.app.job.JobScheduler scheduler = (android.app.job.JobScheduler) context.getApplicationContext().getSystemService(Context.JOB_SCHEDULER_SERVICE);
+            if (scheduler != null) {
+                scheduler.cancel(bootLaunchJobId(context));
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to cancel boot launch job: " + e.getMessage(), e);
         }
     }
 }

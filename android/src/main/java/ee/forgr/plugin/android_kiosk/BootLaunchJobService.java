@@ -19,6 +19,11 @@ public class BootLaunchJobService extends JobService {
         try {
             SharedPreferences prefs = getSharedPreferences(KioskPrefs.PREFS_NAME, Context.MODE_PRIVATE);
             if (!KioskPrefs.shouldRestoreAfterBoot(prefs)) {
+                BootCompletedReceiver.completeBootRestore(getApplicationContext());
+                jobFinished(params, false);
+                return false;
+            }
+            if (!prefs.getBoolean(KioskPrefs.KEY_BOOT_RESTORE_PENDING, false)) {
                 jobFinished(params, false);
                 return false;
             }
@@ -30,6 +35,7 @@ public class BootLaunchJobService extends JobService {
             }
             KioskLaunchIntents.addWatchdogLaunchFlags(launchIntent);
             startActivity(launchIntent);
+            BootCompletedReceiver.completeBootRestore(getApplicationContext());
         } catch (Exception e) {
             Log.e(TAG, "Job launch failed: " + e.getMessage(), e);
         }

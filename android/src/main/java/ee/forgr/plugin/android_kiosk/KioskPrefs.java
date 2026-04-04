@@ -12,6 +12,8 @@ public final class KioskPrefs {
     public static final String PREFS_NAME = "CapacitorAndroidKiosk";
     public static final String KEY_RESTORE_AFTER_REBOOT = "restore_after_reboot";
     public static final String KEY_KIOSK_SESSION_ACTIVE = "kiosk_session_active";
+    public static final String KEY_BOOT_RESTORE_PENDING = "boot_restore_pending";
+    public static final String KEY_ALLOWED_KEYS = "allowed_keys";
     static final String LEGACY_KEY_KIOSK_ACTIVE = "kiosk_active";
 
     private KioskPrefs() {}
