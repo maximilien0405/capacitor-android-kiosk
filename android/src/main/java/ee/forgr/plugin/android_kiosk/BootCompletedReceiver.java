@@ -86,7 +86,7 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 flags |= PendingIntent.FLAG_IMMUTABLE;
             }
-            PendingIntent pending = PendingIntent.getActivity(context, ALARM_REQUEST_CODE, launchIntent, flags);
+            PendingIntent pending = PendingIntent.getActivity(context.getApplicationContext(), ALARM_REQUEST_CODE, launchIntent, flags);
 
             long triggerAt = SystemClock.elapsedRealtime() + ALARM_DELAY_MS;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -99,6 +99,34 @@ public class BootCompletedReceiver extends BroadcastReceiver {
         }
     }
 
+    /**
+     * Cancels the boot-time activity alarm from {@link #scheduleAlarmLaunch}. Uses the same
+     * request code, resolved launcher intent (with watchdog flags), {@link PendingIntent} flags,
+     * and {@link PendingIntent#getActivity} as scheduling — not the watchdog broadcast PI.
+     */
+    static void cancelBootLaunchActivityAlarm(Context context) {
+        if (context == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        try {
+            Intent launchIntent = KioskLaunchIntents.resolveLaunchIntent(context);
+            if (launchIntent == null) return;
+            KioskLaunchIntents.addWatchdogLaunchFlags(launchIntent);
+
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pending = PendingIntent.getActivity(context.getApplicationContext(), ALARM_REQUEST_CODE, launchIntent, flags);
+
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                alarmManager.cancel(pending);
+            }
+            pending.cancel();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to cancel boot launch alarm: " + e.getMessage(), e);
+        }
+    }
+
     private void scheduleJobLaunch(Context context) {
         try {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return;
@@ -107,9 +135,9 @@ public class BootCompletedReceiver extends BroadcastReceiver {
             if (scheduler == null) return;
 
             ComponentName jobService = new ComponentName(context, BootLaunchJobService.class);
-            android.app.job.JobInfo.Builder builder = new android.app.job.JobInfo.Builder(JOB_ID, jobService).setOverrideDeadline(
-                ALARM_DELAY_MS
-            );
+            android.app.job.JobInfo.Builder builder = new android.app.job.JobInfo.Builder(JOB_ID, jobService)
+                .setMinimumLatency(ALARM_DELAY_MS)
+                .setOverrideDeadline(ALARM_DELAY_MS);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 builder.setRequiresDeviceIdle(false);

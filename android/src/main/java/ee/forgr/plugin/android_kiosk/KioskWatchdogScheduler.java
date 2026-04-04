@@ -101,6 +101,7 @@ public final class KioskWatchdogScheduler {
         }
     }
 
+    /** Cancels only the sliding watchdog broadcast alarm (see {@link BootCompletedReceiver#cancelBootLaunchActivityAlarm}). */
     static void cancelPendingAlarm(Context context) {
         Context app = context.getApplicationContext();
         int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;

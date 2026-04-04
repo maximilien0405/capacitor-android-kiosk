@@ -7,11 +7,11 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 /**
- * Watchdog tick: best-effort {@link Context#startActivity} (skipped while the display is off via
- * {@link KioskRelaunchHelper}). When the watchdog is still enabled in prefs, re-arms the next alarm
- * via {@link KioskWatchdogScheduler#scheduleNext}; if the watchdog is disabled in prefs,
- * {@link #onReceive} returns early and does not schedule. OEMs may block the activity; the schedule
- * still advances when enabled.
+ * Watchdog alarm tick: tries to start the launcher activity through
+ * {@link KioskRelaunchHelper#startLaunchActivity} (which skips {@code startActivity} while the display
+ * is off). Then {@link KioskWatchdogScheduler#scheduleNext} re-arms the next alarm unless the watchdog
+ * is disabled—{@link #onReceive} returns early when the enabled pref is false, so {@code scheduleNext}
+ * is never called. When enabled, the schedule advances even if the activity start was skipped or blocked.
  */
 public class KioskWatchdogReceiver extends BroadcastReceiver {
 

@@ -395,6 +395,12 @@ public class CapacitorAndroidKioskPlugin extends Plugin {
         SharedPreferences prefs = getKioskPrefs();
         if (prefs != null) {
             prefs.edit().putBoolean(KioskPrefs.KEY_RESTORE_AFTER_REBOOT, restore).apply();
+            if (!restore) {
+                Context ctx = getContext();
+                if (ctx != null) {
+                    BootCompletedReceiver.cancelBootLaunchActivityAlarm(ctx.getApplicationContext());
+                }
+            }
         }
     }
 

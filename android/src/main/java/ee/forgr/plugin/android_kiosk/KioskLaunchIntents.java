@@ -46,8 +46,11 @@ public final class KioskLaunchIntents {
             return;
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-        // API 31+: include CLEAR_TOP so a cold start from background (alarm/job/watchdog) targets the
-        // existing task reliably; gated to match platform relaunch behavior, not because the flag is missing pre-S.
+        // On Android 12+ (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S), background starts from
+        // alarm/PI/watchdog behave more strictly; adding FLAG_ACTIVITY_CLEAR_TOP only from S onward
+        // keeps relaunch intent behavior aligned with how we cold-start from non-Activity contexts
+        // without changing older-task semantics on pre-S. The flag exists on all API levels; the guard
+        // is intentional, not a capability check.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         }
